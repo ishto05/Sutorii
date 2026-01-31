@@ -1,0 +1,51 @@
+# ========== Global .gitignore (Sutorii) ==========
+
+# 🔁 Node modules (backend + frontend)
+**/node_modules/
+
+# 📦 Build / Dist
+**/build/
+**/dist/
+**/.next/
+**/.vite/
+
+# 🔒 Env files
+**/.env
+**/.env.*
+**/.env.*.local
+
+# 🖼️ Uploads, cache, temp
+**/uploads/
+**/temp/
+**/tmp/
+**/.cache/
+
+# 🧪 Tests & Coverage
+**/coverage/
+**/jest/
+**/*.test.js.snap
+
+# 💻 IDEs & System files
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# 🪵 Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 🐍 Python service (if added later)
+**/__pycache__/
+**/*.pyc
+**/venv/
+
+# Docker artifacts (optional but safe)
+**/.docker/
+docker-compose.override.yml
+.dockerignore
+
+
+# ========== End ==========
