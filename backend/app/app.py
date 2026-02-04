@@ -6,9 +6,19 @@ import tempfile
 import os
 from app.workers.evaluate import evaluate_line
 from fastapi import UploadFile, File, Form
+from fastapi.middleware.cors import CORSMiddleware
+from app.config.config import settings
 
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # 1. Define the expected request shape

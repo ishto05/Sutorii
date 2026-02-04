@@ -10,7 +10,7 @@ def upload_audio(file_path: str) -> str:
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"Audio file not found: {file_path}")
 
-    file_name = f"audio/--youtubevideoID--/{uuid.uuid4()}.mp3"
+    file_name = f"audio/{uuid.uuid4()}.mp3"
 
     try:
         with open(file_path, "rb") as f:

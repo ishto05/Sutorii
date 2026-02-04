@@ -8,6 +8,8 @@ load_dotenv(dotenv_path=env_path)
 
 
 class Settings:
+    PORT = os.getenv("PORT")
+    ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS").split(",")
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
     SUPABASE_URL = os.getenv("SUPABASE_URL")
     SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
