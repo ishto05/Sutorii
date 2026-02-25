@@ -286,7 +286,7 @@ export default function Page() {
             )}
 
             {/* ── Controls row ───────────────────────────────────────────── */}
-            <div className="flex-none flex items-center gap-4 flex-wrap">
+            <div className="flex-none items-center gap-4 flex-wrap">
               <RoleplayControls
                 roleplayActive={roleplayActive}
                 sceneEnded={sceneEnded}
@@ -303,35 +303,36 @@ export default function Page() {
                   onStop={handleRecordingStop}
                 />
               )}
-            </div>
 
-            {/* ── Script + results ────────────────────────────────────────── */}
-            <div className="flex-1 overflow-y-auto flex flex-col gap-4 pb-4">
-              <ScriptPanel
-                script={scenePackage.script}
-                currentUserIndex={currentUserIndex}
-                roleplayActive={roleplayActive}
-                isPausedForRecording={isPausedForRecording}
-              />
-
-              {/* Evaluation results (batch) */}
-              {evaluationResults.length > 0 && (
-                <EvaluationPanel
-                  results={evaluationResults}
-                  expectedTexts={expectedTexts}
+              {/* ── Script + results ────────────────────────────────────────── */}
+              <div className="flex-1 overflow-y-auto flex flex-col gap-4 pb-4">
+                <ScriptPanel
+                  script={scenePackage.script}
+                  currentUserIndex={currentUserIndex}
+                  roleplayActive={roleplayActive}
+                  isPausedForRecording={isPausedForRecording}
                 />
-              )}
 
-              {/* Raw JSON — MVP transparency, matches Phase-1 pattern */}
-              <details className="mt-2">
-                <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-600">
-                  Scene JSON
-                </summary>
-                <pre className="mt-1 text-xs whitespace-pre-wrap font-mono text-gray-500 bg-gray-50 p-3 rounded border border-gray-100 overflow-x-auto">
-                  {JSON.stringify(scenePackage, null, 2)}
-                </pre>
-              </details>
+                {/* Evaluation results (batch) */}
+                {evaluationResults.length > 0 && (
+                  <EvaluationPanel
+                    results={evaluationResults}
+                    expectedTexts={expectedTexts}
+                  />
+                )}
+
+                {/* Raw JSON — MVP transparency, matches Phase-1 pattern */}
+                <details className="mt-2">
+                  <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-600">
+                    Scene JSON
+                  </summary>
+                  <pre className="mt-1 text-xs whitespace-pre-wrap font-mono text-gray-500 bg-gray-50 p-3 rounded border border-gray-100 overflow-x-auto">
+                    {JSON.stringify(scenePackage, null, 2)}
+                  </pre>
+                </details>
+              </div>
             </div>
+
           </>
         ) : (
           /* ── Empty state ─────────────────────────────────────────────── */

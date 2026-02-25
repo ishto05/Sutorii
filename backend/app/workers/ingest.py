@@ -17,20 +17,11 @@ MIN_LINE_DURATION = 0.3  # seconds
 def normalize_scene_lines(gpt_lines: List[GPTSceneLine]) -> List[SceneLine]:
     """
     Normalize GPT-produced dialogue lines into safe, monotonic SceneLine objects.
-
-    Rules:
-    1. Sort by startTime
-    2. Prevent overlaps (clamp startTime to previous endTime)
-    3. Enforce minimum duration
-    4. Ensure startTime < endTime
     """
-
     if not gpt_lines:
         return []
 
-    # 1) Sort by startTime (stable, deterministic)
     ordered = sorted(gpt_lines, key=lambda l: l.startTime)
-
     normalized: List[SceneLine] = []
     prev_end = 0.0
 
@@ -38,11 +29,9 @@ def normalize_scene_lines(gpt_lines: List[GPTSceneLine]) -> List[SceneLine]:
         start = max(line.startTime, prev_end)
         end = line.endTime
 
-        # 2) Enforce minimum duration
         if end - start < MIN_LINE_DURATION:
             end = start + MIN_LINE_DURATION
 
-        # 3) Final guard
         if start >= end:
             end = start + MIN_LINE_DURATION
 
@@ -55,13 +44,14 @@ def normalize_scene_lines(gpt_lines: List[GPTSceneLine]) -> List[SceneLine]:
                 endTime=round(end, 3),
             )
         )
-
         prev_end = end
 
     return normalized
 
 
 def ingest_scene(youtube_url: str) -> ScenePackage:
+    print(f"🚀 Starting ingestion for: {youtube_url}")
+
     tmp_audio = tempfile.NamedTemporaryFile(delete=False)
     tmp_base_path = tmp_audio.name
     tmp_audio.close()
@@ -69,6 +59,8 @@ def ingest_scene(youtube_url: str) -> ScenePackage:
     final_mp3_path = f"{tmp_base_path}.mp3"
 
     try:
+        # 1. Download & Extract Audio
+        print("📥 Phase 1: Downloading audio via yt-dlp...")
         ydl_opts = {
             "format": "bestaudio/best",
             "noplaylist": True,
@@ -82,30 +74,67 @@ def ingest_scene(youtube_url: str) -> ScenePackage:
             ],
             "quiet": True,
             "no_warnings": True,
-            "source_address": "0.0.0.0",
+            "nocheckcertificate": True,
         }
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([youtube_url])
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([youtube_url])
+        except Exception as e:
+            print(f"❌ yt-dlp failed: {e}")
+            raise RuntimeError(f"Failed to download video: {str(e)}")
 
         if not os.path.exists(final_mp3_path):
-            raise FileNotFoundError(f"Audio file not created: {final_mp3_path}")
+            # Try to see if it downloaded with a different extension or failed post-processing
+            print(
+                f"⚠️  Expected MP3 not found at {final_mp3_path}. Checking for alternatives..."
+            )
+            possible_files = [
+                f"{tmp_base_path}.m4a",
+                f"{tmp_base_path}.webm",
+                f"{tmp_base_path}.wav",
+            ]
+            found = False
+            for pf in possible_files:
+                if os.path.exists(pf):
+                    final_mp3_path = pf
+                    found = True
+                    print(f"✅ Found alternative: {pf}")
+                    break
+            if not found:
+                raise FileNotFoundError(
+                    "Could not find downloaded audio file in any supported format."
+                )
 
-        # ✅ Whisper supports MP3
-        transcript = transcribe(final_mp3_path)
+        # 2. Transcribe
+        print("🎙️ Phase 2: Transcribing via Whisper...")
+        try:
+            transcript = transcribe(final_mp3_path)
+        except Exception as e:
+            print(f"❌ Whisper phase failed: {e}")
+            raise RuntimeError(f"Transcription failed: {str(e)}")
 
-        if transcript["duration"] > 600:
+        if transcript.get("duration", 0) > 600:
             raise ValueError("Video too long for MVP (max 10 minutes)")
 
+        # 3. GPT Refinement
+        print("🧠 Phase 3: Refining script via GPT...")
         try:
             gpt_lines = refine_script_from_whisper(transcript)
         except Exception as e:
-            print("GPT structured output failed:", e)
-            raise RuntimeError("Script generation failed")
+            print(f"❌ GPT phase failed: {e}")
+            raise RuntimeError(f"Script generation failed: {str(e)}")
 
-        # ✅ Upload MP3 (small, safe)
-        storage_path = upload_audio(final_mp3_path)
+        # 4. Storage Upload
+        print("☁️ Phase 4: Uploading to Supabase...")
+        try:
+            storage_path = upload_audio(final_mp3_path)
+        except Exception as e:
+            print(f"❌ Storage phase failed: {e}")
+            raise RuntimeError(f"Audio upload failed: {str(e)}")
 
+        # 5. Assemble and Return
+        print("✅ Phase 5: Normalizing and assembling package...")
         script = normalize_scene_lines(gpt_lines)
 
         scene = ScenePackage(
@@ -114,7 +143,7 @@ def ingest_scene(youtube_url: str) -> ScenePackage:
             source={"type": "youtube", "url": youtube_url},
             audio={
                 "storagePath": storage_path,
-                "duration": transcript["duration"],
+                "duration": transcript.get("duration", 0),
                 "sampleRate": 16000,
             },
             script=script,
@@ -124,10 +153,24 @@ def ingest_scene(youtube_url: str) -> ScenePackage:
             },
         )
 
+        print(f"✨ Ingestion complete: {scene.sceneId}")
         return scene
 
+    except Exception as e:
+        print(f"💥 Pipeline Error: {e}")
+        raise e
+
     finally:
-        if os.path.exists(final_mp3_path):
-            os.unlink(final_mp3_path)
-        if os.path.exists(tmp_base_path):
-            os.unlink(tmp_base_path)
+        # Cleanup
+        for path in [
+            final_mp3_path,
+            tmp_base_path,
+            f"{tmp_base_path}.m4a",
+            f"{tmp_base_path}.webm",
+            f"{tmp_base_path}.wav",
+        ]:
+            if os.path.exists(path):
+                try:
+                    os.unlink(path)
+                except:
+                    pass

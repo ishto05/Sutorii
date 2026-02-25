@@ -4,7 +4,7 @@ from app.services.whisper import transcribe
 from app.models.schema import EvaluationResult
 from app.services.evaluation.normalize import normalize_text
 from app.services.evaluation.similarity import compute_scores
-from app.services.gpt import client as gpt_client
+from app.config.config import settings
 
 
 def evaluate_line(
@@ -27,6 +27,8 @@ def evaluate_line(
 
     # 3️⃣ GPT feedback (real AI preferred)
     feedback_summary = "Good attempt! Keep practicing."
+
+    gpt_client = settings.openai_client
 
     if gpt_client:
         try:

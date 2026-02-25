@@ -1,14 +1,8 @@
-from openai import OpenAI
 from app.config.config import settings
 from pydantic import BaseModel
 from typing import List, Literal
 import json
 from app.services.rate_limit import check_rate_limit
-
-# Only initialize if key exists to avoid OpenAI library internal errors
-client = None
-if settings.is_ai_ready and settings.AI_ENABLED:
-    client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
 
 class GPTSceneLine(BaseModel):
@@ -23,6 +17,7 @@ class ScriptResponse(BaseModel):
 
 
 def refine_script_from_whisper(whisper_result: dict) -> List[GPTSceneLine]:
+    client = settings.openai_client
 
     if client:
         check_rate_limit("gpt")
@@ -32,8 +27,8 @@ def refine_script_from_whisper(whisper_result: dict) -> List[GPTSceneLine]:
     Returns structured dialogue lines with timestamps
     """
 
-    # MOCK LOGIC
-    if not client:
+    # MOCK LOGIC: Always return mock if AI is disabled or client is not initialized
+    if not settings.AI_ENABLED or not client:
         print("🛠️  MOCK GPT: Returning structured dummy dialogue lines...")
         return [
             GPTSceneLine(
