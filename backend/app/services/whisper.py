@@ -1,14 +1,19 @@
 from openai import OpenAI
 from app.config.config import settings
 import os
+from app.services.rate_limit import check_rate_limit
 
 client = None
 
-if settings.is_ai_ready:
+if settings.is_ai_ready and settings.AI_ENABLED:
     client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
 
 def transcribe(audio_path: str) -> dict:
+
+    if settings.is_ai_ready:
+        check_rate_limit("whisper")
+
     # MOKE LOGIC
     if not client:
         if not settings.is_ai_ready:

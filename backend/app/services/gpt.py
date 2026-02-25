@@ -3,10 +3,11 @@ from app.config.config import settings
 from pydantic import BaseModel
 from typing import List, Literal
 import json
+from app.services.rate_limit import check_rate_limit
 
 # Only initialize if key exists to avoid OpenAI library internal errors
 client = None
-if settings.is_ai_ready:
+if settings.is_ai_ready and settings.AI_ENABLED:
     client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
 
@@ -22,6 +23,10 @@ class ScriptResponse(BaseModel):
 
 
 def refine_script_from_whisper(whisper_result: dict) -> List[GPTSceneLine]:
+
+    if client:
+        check_rate_limit("gpt")
+
     """
     Takes Whisper verbose JSON (with segments)
     Returns structured dialogue lines with timestamps

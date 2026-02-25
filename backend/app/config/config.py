@@ -15,6 +15,7 @@ class Settings:
     SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
     SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET")
     REDIS_URL = os.getenv("REDIS_URL")
+    AI_ENABLED = os.getenv("AI_ENABLED", "false").lower() == "true"
 
     supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
     print(supabase.storage.list_buckets())
