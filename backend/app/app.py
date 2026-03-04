@@ -5,7 +5,7 @@ from fastapi import UploadFile, File
 import tempfile
 import os
 from app.workers.evaluate import evaluate_line
-from fastapi import UploadFile, File, Form
+from fastapi import Form
 from fastapi.middleware.cors import CORSMiddleware
 from app.config.config import settings
 

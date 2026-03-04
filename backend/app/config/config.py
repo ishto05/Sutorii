@@ -13,6 +13,8 @@ class Settings:
     PORT = os.getenv("PORT")
     ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS").split(",")
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip().strip('"')
+    COLAB_API_SECRET = os.getenv("COLAB_API_SECRET", "").strip().strip('"')
+    COLAB_WHISPERX_URL = os.getenv("COLAB_WHISPERX_URL", "").strip().strip('"')
     SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip().strip('"')
     SUPABASE_SERVICE_ROLE_KEY = (
         os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip().strip('"')
@@ -25,40 +27,65 @@ class Settings:
 
     supabase = None
     _openai_client = None
+    _whisperX_client = None
 
     def __init__(self):
-        # Initialize Supabase if values are present
+        print("\n" + "=" * 50)
+        print("STARTING SERVICE CHECKS")
+        print("=" * 50)
+
+        # 1. Supabase
         if self.SUPABASE_URL and self.SUPABASE_SERVICE_ROLE_KEY:
             try:
                 self.supabase = create_client(
                     self.SUPABASE_URL, self.SUPABASE_SERVICE_ROLE_KEY
                 )
-                print("🔗 Supabase init successful.")
+                # Test connection
+                self.supabase.storage.list_buckets()
+                print("✅ [SUPABASE] Connection successful.")
             except Exception as e:
-                print(f"⚠️  Supabase init warning: {e}")
+                print(f"❌ [SUPABASE] Initialization failed: {e}")
+        else:
+            print("⚠️  [SUPABASE] Configuration missing.")
 
-        # Initialize OpenAI if key is present
+        # 2. OpenAI
         if self.is_ai_ready and self.AI_ENABLED:
             try:
                 self._openai_client = OpenAI(api_key=self.OPENAI_API_KEY)
+                # Simple check - technically needs a call to verify key, but sticking to init for now
+                print("✅ [OPENAI] Client initialized.")
             except Exception as e:
-                print(f"⚠️  OpenAI init warning: {e}")
+                print(f"❌ [OPENAI] Initialization failed: {e}")
+        else:
+            status = "MISSING" if not self.OPENAI_API_KEY else "DISABLED"
+            print(f"⚠️  [OPENAI] Service is {status}.")
 
-        # Instead of crashing, we just print a warning to the console
+        # 3. Colab WhisperX
+        if self.COLAB_WHISPERX_URL:
+            try:
+                import httpx
+                response = httpx.get(f"{self.COLAB_WHISPERX_URL.rstrip('/')}/health", timeout=5)
+                if response.status_code == 200:
+                    print(f"✅ [WHISPERX] Service is ONLINE (status: {response.json().get('status')} connected to Device: {response.json().get('device')}, GPU: {response.json().get('gpu')}, Model: {response.json().get('model')})")
+                    self._whisperX_client = self.COLAB_WHISPERX_URL, self.COLAB_API_SECRET
+                else:
+                    print(f"⚠️  [WHISPERX] Service returned status {response.status_code}")
+            except Exception as e:
+                print(f"⚠️  [WHISPERX] Service unreachable: {e}")
+        else:
+            print("⚠️  [WHISPERX] Configuration missing.")
 
         missing = []
-        if not self.OPENAI_API_KEY:
-            missing.append("OPENAI_API_KEY")
-        if not self.SUPABASE_URL:
-            missing.append("SUPABASE_URL")
+        if not self.OPENAI_API_KEY: missing.append("OPENAI_API_KEY")
+        if not self.SUPABASE_URL: missing.append("SUPABASE_URL")
+        if not self.COLAB_WHISPERX_URL: missing.append("COLAB_WHISPERX_URL")
 
         if missing:
-            print(
-                f"⚠️  DEVELOPMENT WARNING: The following keys are missing: {', '.join(missing)}"
-            )
-            print(
-                "⚠️  The app will run, but real API calls will fail. Use Mocks instead."
-            )
+            print("-" * 50)
+            print(f"⚠️  MISSING KEYS: {', '.join(missing)}")
+            print("⚠️  Mock will be returned.")
+        
+        print("=" * 50 + "\n")
 
     @property
     def is_ai_ready(self) -> bool:

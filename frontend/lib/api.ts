@@ -29,7 +29,7 @@ export async function evaluateLine({
     form.append("sceneId", sceneId);
     form.append("lineId", lineId);
     form.append("expectedText", expectedText);
-    form.append("audio", audioBlob);
+    form.append("audio", audioBlob, "recording.webm");
 
     const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_BASE_URL}/evaluate`,

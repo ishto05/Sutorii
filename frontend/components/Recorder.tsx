@@ -37,8 +37,12 @@ export default function Recorder({ enabled, onStart, onStop }: RecorderProps) {
 
             mediaRecorder.onstop = () => {
                 const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-                onStop(blob);
+
+                // Stop all tracks to release the microphone immediately
                 stream.getTracks().forEach((track) => track.stop());
+
+                onStop(blob);
+                setRecording(false);
             };
 
             mediaRecorder.start();
@@ -48,13 +52,16 @@ export default function Recorder({ enabled, onStart, onStop }: RecorderProps) {
         } catch (err) {
             console.error(err);
             setError("Microphone access denied or unavailable.");
+            setRecording(false);
         }
     }
 
     function stopRecording() {
         if (!recording) return;
-        mediaRecorderRef.current?.stop();
-        setRecording(false);
+        // Don't setRecording(false) here; wait for onstop to ensure blob is ready
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+            mediaRecorderRef.current.stop();
+        }
     }
 
     // ─── Derived UI state ──────────────────────────────────────────────────────

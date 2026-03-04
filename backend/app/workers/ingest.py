@@ -9,7 +9,6 @@ from app.models.schema import ScenePackage, SceneLine
 from datetime import datetime
 from typing import List
 from app.services.gpt import GPTSceneLine
-from app.models.schema import SceneLine
 
 MIN_LINE_DURATION = 0.3  # seconds
 
@@ -60,7 +59,7 @@ def ingest_scene(youtube_url: str) -> ScenePackage:
 
     try:
         # 1. Download & Extract Audio
-        print("📥 Phase 1: Downloading audio via yt-dlp...")
+        print(" Phase 1: Downloading audio via yt-dlp...")
         ydl_opts = {
             "format": "bestaudio/best",
             "noplaylist": True,
@@ -107,7 +106,7 @@ def ingest_scene(youtube_url: str) -> ScenePackage:
                 )
 
         # 2. Transcribe
-        print("🎙️ Phase 2: Transcribing via Whisper...")
+        print(" Phase 2: Transcribing via Whisper...")
         try:
             transcript = transcribe(final_mp3_path)
         except Exception as e:
@@ -118,7 +117,7 @@ def ingest_scene(youtube_url: str) -> ScenePackage:
             raise ValueError("Video too long for MVP (max 10 minutes)")
 
         # 3. GPT Refinement
-        print("🧠 Phase 3: Refining script via GPT...")
+        print(" Phase 3: Refining script via GPT...")
         try:
             gpt_lines = refine_script_from_whisper(transcript)
         except Exception as e:
@@ -126,7 +125,7 @@ def ingest_scene(youtube_url: str) -> ScenePackage:
             raise RuntimeError(f"Script generation failed: {str(e)}")
 
         # 4. Storage Upload
-        print("☁️ Phase 4: Uploading to Supabase...")
+        print(" Phase 4: Uploading to Supabase...")
         try:
             storage_path = upload_audio(final_mp3_path)
         except Exception as e:
@@ -134,7 +133,7 @@ def ingest_scene(youtube_url: str) -> ScenePackage:
             raise RuntimeError(f"Audio upload failed: {str(e)}")
 
         # 5. Assemble and Return
-        print("✅ Phase 5: Normalizing and assembling package...")
+        print(" Phase 5: Normalizing and assembling package...")
         script = normalize_scene_lines(gpt_lines)
 
         scene = ScenePackage(
@@ -153,7 +152,7 @@ def ingest_scene(youtube_url: str) -> ScenePackage:
             },
         )
 
-        print(f"✨ Ingestion complete: {scene.sceneId}")
+        print(f" Ingestion complete: {scene.sceneId}")
         return scene
 
     except Exception as e:
