@@ -1,48 +1,121 @@
 from app.config.config import settings
 from pydantic import BaseModel
-from typing import List, Literal
+from typing import List, Literal, Optional
 import json
 from app.services.rate_limit import check_rate_limit
+from app.models.schema import WordToken, QuizQuestion
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GPT response models
+# ─────────────────────────────────────────────────────────────────────────────
 
 
 class GPTSceneLine(BaseModel):
-    speaker: Literal["NPC", "USER"]
+    characterName: str
     text: str
+    phoneticReading: Optional[str] = None
+    translation: Optional[str] = None
     startTime: float
     endTime: float
+    words: List[WordToken] = []
+
+
+class GPTQuizQuestion(BaseModel):
+    type: Literal["vocabulary", "comprehension", "grammar"]
+    question: str
+    expectedAnswer: str
+    relatedLineId: Optional[str] = None
 
 
 class ScriptResponse(BaseModel):
+    characters: List[str]
     lines: List[GPTSceneLine]
+    quiz: List[GPTQuizQuestion]
 
 
-def refine_script_from_whisper(whisper_result: dict) -> List[GPTSceneLine]:
+# ─────────────────────────────────────────────────────────────────────────────
+# Quiz count helper
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _quiz_count_for_scene(line_count: int) -> int:
+    if line_count < 5:
+        return 2
+    elif line_count <= 10:
+        return 3
+    else:
+        return 5
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Main function
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def refine_script_from_whisper(whisper_result: dict) -> ScriptResponse:
     client = settings.openai_client
 
     if client:
         check_rate_limit("gpt")
 
-    """
-    Takes Whisper verbose JSON (with segments)
-    Returns structured dialogue lines with timestamps
-    """
+    # Estimate line count from segments to determine quiz size
+    segments = whisper_result.get("segments", [])
+    quiz_count = _quiz_count_for_scene(len(segments))
 
-    # MOCK LOGIC: Always return mock if AI is disabled or client is not initialized
+    # ── MOCK ─────────────────────────────────────────────────────────────────
     if not settings.AI_ENABLED or not client:
         print("🛠️  MOCK GPT: Returning structured dummy dialogue lines...")
-        return [
-            GPTSceneLine(
-                speaker="NPC",
-                text="こんにちは、元気ですか？",
-                startTime=0.0,
-                endTime=2.5,
-            ),
-            GPTSceneLine(
-                speaker="USER", text="はい、元気です！", startTime=2.6, endTime=4.5
-            ),
-        ]
+        return ScriptResponse(
+            characters=["Character 1", "Character 2"],
+            lines=[
+                GPTSceneLine(
+                    characterName="Character 1",
+                    text="こんにちは、元気(げんき)ですか？",
+                    phoneticReading="こんにちは、げんきですか？",
+                    translation="Hello, how are you?",
+                    startTime=0.0,
+                    endTime=2.5,
+                    words=[
+                        WordToken(
+                            word="こんにちは", reading="こんにちは", meaning="hello"
+                        ),
+                        WordToken(
+                            word="元気", reading="げんき", meaning="energy / health"
+                        ),
+                    ],
+                ),
+                GPTSceneLine(
+                    characterName="Character 2",
+                    text="はい、元気(げんき)です！",
+                    phoneticReading="はい、げんきです！",
+                    translation="Yes, I am fine!",
+                    startTime=2.6,
+                    endTime=4.5,
+                    words=[
+                        WordToken(word="はい", reading="はい", meaning="yes"),
+                        WordToken(
+                            word="元気", reading="げんき", meaning="energy / health"
+                        ),
+                    ],
+                ),
+            ],
+            quiz=[
+                GPTQuizQuestion(
+                    type="vocabulary",
+                    question="What does 元気 mean?",
+                    expectedAnswer="energy / health",
+                    relatedLineId=None,
+                ),
+                GPTQuizQuestion(
+                    type="comprehension",
+                    question="What did Character 1 ask Character 2?",
+                    expectedAnswer="How are you",
+                    relatedLineId=None,
+                ),
+            ],
+        )
 
-    segments = whisper_result.get("segments", [])
+    # ── REAL GPT CALL ─────────────────────────────────────────────────────────
     if not segments:
         raise ValueError("Whisper result missing segments; cannot build script")
 
@@ -52,22 +125,28 @@ def refine_script_from_whisper(whisper_result: dict) -> List[GPTSceneLine]:
             {
                 "role": "system",
                 "content": (
-                    "You are a Japanese dialogue editor for a language learning app.\n"
-                    "You are given speech segments with timestamps.\n"
-                    "Split them into short, natural dialogue lines.\n\n"
-                    "IMPORTANT TEXT RULES:\n"
-                    "- Preserve the original Japanese sentence structure.\n"
-                    "- Keep kanji in the text.\n"
-                    "- For EVERY kanji word, add its reading in hiragana or katakana in parentheses immediately after the word.\n"
-                    "- Do NOT remove kanji.\n"
-                    "- Do NOT romanize.\n"
-                    "- Example: 元気ですか？ → 元気(げんき)ですか？\n\n"
-                    "SPEAKER RULES:\n"
-                    "- NPC = video speaker\n"
-                    "- USER = learner response\n\n"
-                    "TIMING RULES:\n"
-                    "- Use the provided timestamps.\n"
-                    "- Do NOT invent new times.\n\n"
+                    "You are a language learning content editor.\n"
+                    "You are given speech segments with timestamps from a video.\n\n"
+                    "YOUR TASKS:\n"
+                    "1. Split segments into short, natural dialogue lines.\n"
+                    "2. Identify unique characters (use descriptive names like 'Teacher', 'Student', or 'Character 1').\n"
+                    "3. For each line provide word-level breakdown.\n"
+                    f"4. Generate exactly {quiz_count} quiz questions from the scene.\n\n"
+                    "TEXT RULES:\n"
+                    "- Preserve the original sentence structure.\n"
+                    "- Keep kanji. For every kanji word add its reading in parentheses: 元気(げんき).\n"
+                    "- Do NOT romanize.\n\n"
+                    "WORD RULES:\n"
+                    "- For each line, return every meaningful word.\n"
+                    "- Treat compound words and common word pairs as single tokens (e.g. 感じ not 感+じ).\n"
+                    "- Do NOT split words at the character level.\n"
+                    "- Include: word (original), reading (hiragana/katakana), meaning (English).\n\n"
+                    "QUIZ RULES:\n"
+                    f"- Generate exactly {quiz_count} questions.\n"
+                    "- Mix types: vocabulary, comprehension, grammar.\n"
+                    "- Questions must be asked in English.\n"
+                    "- expectedAnswer must be the correct answer in the language being studied.\n"
+                    "- relatedLineId should reference the line index (e.g. 'line-1') if applicable.\n\n"
                     "Return ONLY structured data matching the required schema.\n"
                     "Do not include explanations or markdown."
                 ),
@@ -83,4 +162,4 @@ def refine_script_from_whisper(whisper_result: dict) -> List[GPTSceneLine]:
     if not completion.choices or not completion.choices[0].message.parsed:
         raise ValueError("Empty or invalid structured response from GPT API")
 
-    return completion.choices[0].message.parsed.lines
+    return completion.choices[0].message.parsed

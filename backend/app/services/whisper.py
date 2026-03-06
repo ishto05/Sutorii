@@ -72,12 +72,12 @@ def _normalize_result(raw: dict, source: str) -> dict:
     Normalize different provider outputs into a unified shape.
     """
     segments = raw.get("segments", [])
-    
+
     # Calculate duration if missing (common in some WhisperX responses)
     duration = raw.get("duration")
     if duration is None and segments:
         duration = segments[-1].get("end", 0.0)
-    
+
     # Consolidate text if missing
     text = raw.get("text")
     if text is None:
@@ -91,7 +91,7 @@ def _normalize_result(raw: dict, source: str) -> dict:
     return {
         "text": text,
         "segments": segments,
-        "language": raw.get("language", "ja"),
+        "language": raw.get("language") or "ja",
         "duration": duration or 0.0,
         "source": source,
     }

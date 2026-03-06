@@ -64,27 +64,40 @@ class Settings:
         if self.COLAB_WHISPERX_URL:
             try:
                 import httpx
-                response = httpx.get(f"{self.COLAB_WHISPERX_URL.rstrip('/')}/health", timeout=5)
+
+                response = httpx.get(
+                    f"{self.COLAB_WHISPERX_URL.rstrip('/')}/health", timeout=5
+                )
                 if response.status_code == 200:
-                    print(f"✅ [WHISPERX] Service is ONLINE (status: {response.json().get('status')} connected to Device: {response.json().get('device')}, GPU: {response.json().get('gpu')}, Model: {response.json().get('model')})")
-                    self._whisperX_client = self.COLAB_WHISPERX_URL, self.COLAB_API_SECRET
+                    print(
+                        f"✅ [WHISPERX] Service is ONLINE (status: {response.json().get('status')}, connected to Device: {response.json().get('device')}, GPU: {response.json().get('gpu')}, Model: {response.json().get('model')})"
+                    )
+                    self._whisperX_client = (
+                        self.COLAB_WHISPERX_URL,
+                        self.COLAB_API_SECRET,
+                    )
                 else:
-                    print(f"⚠️  [WHISPERX] Service returned status {response.status_code}")
+                    print(
+                        f"⚠️  [WHISPERX] Service down status code: {response.status_code} | OPENAI WHISPER will process the audio."
+                    )
             except Exception as e:
                 print(f"⚠️  [WHISPERX] Service unreachable: {e}")
         else:
             print("⚠️  [WHISPERX] Configuration missing.")
 
         missing = []
-        if not self.OPENAI_API_KEY: missing.append("OPENAI_API_KEY")
-        if not self.SUPABASE_URL: missing.append("SUPABASE_URL")
-        if not self.COLAB_WHISPERX_URL: missing.append("COLAB_WHISPERX_URL")
+        if not self.OPENAI_API_KEY:
+            missing.append("OPENAI_API_KEY")
+        if not self.SUPABASE_URL:
+            missing.append("SUPABASE_URL")
+        if not self.COLAB_WHISPERX_URL:
+            missing.append("COLAB_WHISPERX_URL")
 
         if missing:
             print("-" * 50)
             print(f"⚠️  MISSING KEYS: {', '.join(missing)}")
             print("⚠️  Mock will be returned.")
-        
+
         print("=" * 50 + "\n")
 
     @property
