@@ -6,6 +6,7 @@ import ReactPlayer from "react-player";
 export type VideoHandle = {
     seekTo: (seconds: number) => void;
     getCurrentTime: () => number;
+    captureFrame: (seconds: number) => Promise<string | null>;
 };
 
 type VideoPlayerProps = {
@@ -13,6 +14,8 @@ type VideoPlayerProps = {
     playing: boolean;
     onTimeUpdate: (currentTime: number) => void; // renamed: v3 uses onTimeUpdate for time ticks
     onEnded: () => void;
+    onPlay?: () => void;
+    onPause?: () => void;
 };
 
 function cleanYoutubeUrl(url: string | null): string {
@@ -37,7 +40,7 @@ function cleanYoutubeUrl(url: string | null): string {
 }
 
 const VideoPlayer = forwardRef<VideoHandle, VideoPlayerProps>(
-    ({ url, playing, onTimeUpdate, onEnded }, ref) => {
+    ({ url, playing, onTimeUpdate, onEnded, onPlay, onPause }, ref) => {
         const playerRef = useRef<any>(null);
         const [hasMounted, setHasMounted] = useState(false);
         const [ready, setReady] = useState(false);
@@ -48,8 +51,70 @@ const VideoPlayer = forwardRef<VideoHandle, VideoPlayerProps>(
         useEffect(() => { setReady(false); }, [url]);
 
         useImperativeHandle(ref, () => ({
-            seekTo: (seconds: number) => playerRef.current?.seekTo(seconds, "seconds"),
-            getCurrentTime: () => playerRef.current?.getCurrentTime() ?? 0,
+            seekTo: (seconds: number) => {
+                // react-player v3: seekTo may not be on the ref directly.
+                // Try the ref method first, fall back to getInternalPlayer.
+                try {
+                    if (typeof playerRef.current?.seekTo === "function") {
+                        playerRef.current.seekTo(seconds, "seconds");
+                    } else {
+                        // Fall back: get the underlying HTMLVideoElement and set currentTime
+                        const internal = playerRef.current?.getInternalPlayer?.();
+                        if (internal && typeof internal.currentTime !== "undefined") {
+                            internal.currentTime = seconds;
+                        }
+                    }
+                } catch (e) {
+                    console.warn("[VideoPlayer] seekTo failed:", e);
+                }
+            },
+            getCurrentTime: () => {
+                if (!playerRef.current) return 0;
+                try {
+                    // Compatible with HTMLMediaElement or backwards compatible method
+                    return playerRef.current.currentTime ?? 
+                           (typeof playerRef.current.getCurrentTime === "function" 
+                             ? playerRef.current.getCurrentTime() 
+                             : (playerRef.current.getInternalPlayer?.()?.currentTime ?? 0));
+                } catch {
+                    return 0;
+                }
+            },
+            captureFrame: (seconds: number): Promise<string | null> => {
+                return new Promise((resolve) => {
+                    try {
+                        // Seek first
+                        if (typeof playerRef.current?.seekTo === "function") {
+                            playerRef.current.seekTo(seconds, "seconds");
+                        } else {
+                            const internal = playerRef.current?.getInternalPlayer?.();
+                            if (internal?.currentTime !== undefined) internal.currentTime = seconds;
+                        }
+                        setTimeout(() => {
+                            try {
+                                const internal = playerRef.current?.getInternalPlayer?.();
+                                if (internal && internal instanceof HTMLVideoElement) {
+                                    const canvas = document.createElement("canvas");
+                                    canvas.width = internal.videoWidth || 640;
+                                    canvas.height = internal.videoHeight || 360;
+                                    const ctx = canvas.getContext("2d");
+                                    if (!ctx) return resolve(null);
+                                    ctx.drawImage(internal, 0, 0, canvas.width, canvas.height);
+                                    resolve(canvas.toDataURL("image/jpeg", 0.85));
+                                } else {
+                                    console.warn("[VideoPlayer] captureFrame: cross-origin, cannot capture");
+                                    resolve(null);
+                                }
+                            } catch (err) {
+                                console.error("[VideoPlayer] captureFrame error:", err);
+                                resolve(null);
+                            }
+                        }, 350);
+                    } catch (e) {
+                        resolve(null);
+                    }
+                });
+            },
         }));
 
         const cleanedUrl = cleanYoutubeUrl(url);
@@ -91,12 +156,24 @@ const VideoPlayer = forwardRef<VideoHandle, VideoPlayerProps>(
                                 },
                                 // ✅ v3: onTimeUpdate fires on every time tick (like HTMLMediaElement)
                                 //    onProgress fires on data load events — NOT what we want for sync
-                                onTimeUpdate: (e: any) => {
-                                    // e is an Event from the underlying media element
-                                    // currentTime lives on e.target
-                                    const currentTime = (e?.target as HTMLMediaElement)?.currentTime ?? 0;
-                                    onTimeUpdate(currentTime);
+                                onTimeUpdate: () => {
+                                    // v3: onTimeUpdate receives no args. Must get time from ref.
+                                    if (playerRef.current) {
+                                        try {
+                                            // Since v3, instance methods aim to be compatible with HTMLMediaElement
+                                            // So try .currentTime first, then .getCurrentTime() for backwards compatibility
+                                            const currentTime = playerRef.current.currentTime ?? 
+                                                              (typeof playerRef.current.getCurrentTime === "function" 
+                                                                ? playerRef.current.getCurrentTime() 
+                                                                : (playerRef.current.getInternalPlayer?.()?.currentTime ?? 0));
+                                            onTimeUpdate(currentTime);
+                                        } catch (e) {
+                                            console.warn("[VideoPlayer] Failed to get currentTime in onTimeUpdate:", e);
+                                        }
+                                    }
                                 },
+                                onPlay: onPlay,
+                                onPause: onPause,
                                 onEnded: onEnded,
                                 onError: (e: any) => console.error("[VideoPlayer] error:", e),
                             } as any)}

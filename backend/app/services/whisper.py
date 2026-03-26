@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 def transcribe(
     audio_path: str,
+    language: Optional[str] = None,
     min_speakers: Optional[int] = None,
     max_speakers: Optional[int] = None,
 ) -> dict:
@@ -57,9 +58,16 @@ def transcribe(
     logger.info("Using OpenAI Whisper API for transcription")
     try:
         with open(audio_path, "rb") as f:
-            response = client.audio.transcriptions.create(
-                model="whisper-1", file=f, response_format="verbose_json", language="ja"
-            )
+            # If language is provided, pass it; otherwise let Whisper auto-detect
+            kwargs = {
+                "model": "whisper-1",
+                "file": f,
+                "response_format": "verbose_json",
+            }
+            if language:
+                kwargs["language"] = language
+            
+            response = client.audio.transcriptions.create(**kwargs)
         raw = response.model_dump()
         return _normalize_result(raw, source="openai_whisper")
     except Exception as e:
@@ -91,7 +99,7 @@ def _normalize_result(raw: dict, source: str) -> dict:
     return {
         "text": text,
         "segments": segments,
-        "language": raw.get("language") or "ja",
+        "language": raw.get("language") or "unknown",
         "duration": duration or 0.0,
         "source": source,
     }

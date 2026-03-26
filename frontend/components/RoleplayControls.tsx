@@ -19,21 +19,11 @@ export default function RoleplayControls({
     onStart,
     onFinish,
 }: RoleplayControlsProps) {
-    const canStart = !roleplayActive && !sceneEnded && !evaluationStarted;
     const canFinish = sceneEnded && !evaluationStarted && recordingCount > 0;
     const canSkipFinish = sceneEnded && !evaluationStarted && recordingCount === 0;
 
     return (
         <div className="flex items-center gap-3">
-            {/* ── Start Roleplay ── */}
-            {canStart && (
-                <button
-                    onClick={onStart}
-                    className="px-5 py-2 rounded font-semibold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 transition-colors shadow-sm"
-                >
-                    ▶ Start Roleplay
-                </button>
-            )}
 
             {/* ── Active indicator ── */}
             {roleplayActive && (

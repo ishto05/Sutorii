@@ -15,6 +15,9 @@ class Settings:
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip().strip('"')
     COLAB_API_SECRET = os.getenv("COLAB_API_SECRET", "").strip().strip('"')
     COLAB_WHISPERX_URL = os.getenv("COLAB_WHISPERX_URL", "").strip().strip('"')
+    COLAB_CHARACTERID_URL = os.getenv("COLAB_CHARACTERID_URL", "").strip().strip('"')
+    AZURE_SPEECH_KEY = os.getenv("AZURE_SPEECH_KEY", "").strip().strip('"')
+    AZURE_SPEECH_REGION = os.getenv("AZURE_SPEECH_REGION", "").strip().strip('"')
     SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip().strip('"')
     SUPABASE_SERVICE_ROLE_KEY = (
         os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip().strip('"')
@@ -40,7 +43,6 @@ class Settings:
                 self.supabase = create_client(
                     self.SUPABASE_URL, self.SUPABASE_SERVICE_ROLE_KEY
                 )
-                # Test connection
                 self.supabase.storage.list_buckets()
                 print("✅ [SUPABASE] Connection successful.")
             except Exception as e:
@@ -52,7 +54,6 @@ class Settings:
         if self.is_ai_ready and self.AI_ENABLED:
             try:
                 self._openai_client = OpenAI(api_key=self.OPENAI_API_KEY)
-                # Simple check - technically needs a call to verify key, but sticking to init for now
                 print("✅ [OPENAI] Client initialized.")
             except Exception as e:
                 print(f"❌ [OPENAI] Initialization failed: {e}")
@@ -64,13 +65,16 @@ class Settings:
         if self.COLAB_WHISPERX_URL:
             try:
                 import httpx
-
                 response = httpx.get(
                     f"{self.COLAB_WHISPERX_URL.rstrip('/')}/health", timeout=5
                 )
                 if response.status_code == 200:
                     print(
-                        f"✅ [WHISPERX] Service is ONLINE (status: {response.json().get('status')}, connected to Device: {response.json().get('device')}, GPU: {response.json().get('gpu')}, Model: {response.json().get('model')})"
+                        f"✅ [WHISPERX] Service is ONLINE "
+                        f"(status: {response.json().get('status')}, "
+                        f"device: {response.json().get('device')}, "
+                        f"gpu: {response.json().get('gpu')}, "
+                        f"model: {response.json().get('model')})"
                     )
                     self._whisperX_client = (
                         self.COLAB_WHISPERX_URL,
@@ -78,12 +82,44 @@ class Settings:
                     )
                 else:
                     print(
-                        f"⚠️  [WHISPERX] Service down status code: {response.status_code} | OPENAI WHISPER will process the audio."
+                        f"⚠️  [WHISPERX] Service down (status: {response.status_code}) "
+                        f"| OpenAI Whisper will be used as fallback."
                     )
             except Exception as e:
                 print(f"⚠️  [WHISPERX] Service unreachable: {e}")
         else:
             print("⚠️  [WHISPERX] Configuration missing.")
+
+        # 4. Colab CharacterID
+        if self.COLAB_CHARACTERID_URL:
+            try:
+                import httpx
+                response = httpx.get(
+                    f"{self.COLAB_CHARACTERID_URL.rstrip('/')}/health", timeout=5
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    print(
+                        f"✅ [CHARACTERID] Service is ONLINE "
+                        f"(status: {data.get('status')}, "
+                        f"device: {data.get('device')}, "
+                        f"gpu: {data.get('gpu')})"
+                    )
+                else:
+                    print(
+                        f"⚠️  [CHARACTERID] Service down (status: {response.status_code}) "
+                        f"| Character ID will be skipped (SPEAKER_XX fallback)."
+                    )
+            except Exception as e:
+                print(f"⚠️  [CHARACTERID] Service unreachable: {e} | Will skip Phase 3b.")
+        else:
+            print("⚠️  [CHARACTERID] Configuration missing — Phase 3b will be skipped.")
+
+        # 5. Azure Speech
+        if self.AZURE_SPEECH_KEY and self.AZURE_SPEECH_REGION:
+            print(f"✅ [AZURE] Speech credentials configured (region: {self.AZURE_SPEECH_REGION}).")
+        else:
+            print("⚠️  [AZURE] AZURE_SPEECH_KEY or AZURE_SPEECH_REGION missing — mock pronunciation scores will be used.")
 
         missing = []
         if not self.OPENAI_API_KEY:

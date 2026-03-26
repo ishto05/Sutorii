@@ -7,7 +7,7 @@
 
 ## Project Overview
 
-**Sutorii** is a Japanese language learning application that processes YouTube videos into interactive scenes. It uses AI (Whisper/WhisperX for transcription, GPT-4o-mini for script refinement and feedback) to create structured dialogue lessons and evaluates user pronunciation via recording and similarity scoring.
+**Sutorii** is a language learning application that processes YouTube videos into interactive scenes. It uses AI (Whisper/WhisperX for transcription, GPT-4o-mini for script refinement and feedback) to create structured dialogue lessons and evaluates user pronunciation via recording and similarity scoring.
 
 ---
 
